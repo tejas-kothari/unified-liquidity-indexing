@@ -1,0 +1,20 @@
+{
+  "name": "unified-liquidity-indexing",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@uniswap/sdk-core": "^5.3.1",
+    "@uniswap/v3-core": "^1.0.1",
+    "@uniswap/v3-sdk": "^3.13.1",
+    "dotenv": "^16.4.5",
+    "ethers": "^6.13.1",
+    "ethers-multicall-provider": "^6.3.1",
+    "redis": "^4.6.14"
+  }
+}
