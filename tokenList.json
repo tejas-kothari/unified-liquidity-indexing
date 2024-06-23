@@ -6289,6 +6289,21 @@
         },
         {
             "chainId": 8453,
+            "address": "0x26f3901aC8a79c50fb0d8289C74f0d09AdC42E29",
+            "name": "Threshold Network",
+            "symbol": "T",
+            "decimals": 18,
+            "logoURI": "https://assets.coingecko.com/coins/images/22228/thumb/nFPNiSbL_400x400.jpg?1641220340",
+            "extensions": {
+                "bridgeInfo": {
+                    "1": {
+                        "tokenAddress": "0xCdF7028ceAB81fA0C6971208e83fa7872994beE5"
+                    }
+                }
+            }
+        },
+        {
+            "chainId": 8453,
             "address": "0xA81a52B4dda010896cDd386C7fBdc5CDc835ba23",
             "name": "OriginTrail",
             "symbol": "TRAC",
