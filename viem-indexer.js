@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { createClient } from "redis";
 import { createPublicClient, decodeEventLog, parseAbi, webSocket } from "viem";
 import { chains, getToken } from "./viem-chain-helper.js";
@@ -8,18 +7,30 @@ import {
   updatePoolData,
 } from "./viem-uniV3-helper.js";
 
-const redisClient = createClient({ url: process.env.DB_URL });
+let RETH;
+let KEYDB;
+
+const rethIndex = process.argv.indexOf("--RETH");
+const keydbIndex = process.argv.indexOf("--KEYDB");
+if (rethIndex > -1 && keydbIndex > -1) {
+  RETH = process.argv[rethIndex + 1];
+  KEYDB = process.argv[keydbIndex + 1];
+} else {
+  throw Error("RETH or KEYDB args not found");
+}
+
+const redisClient = createClient({ url: KEYDB });
 redisClient.on("error", (err) => console.log("Redis Client Error", err));
 await redisClient.connect();
 
 let viemClient = createPublicClient({
-  transport: webSocket(process.env.RPC),
+  transport: webSocket(RETH),
 });
 const chainId = await viemClient.getChainId();
 const chain = chains.find((v) => v.id === chainId);
 viemClient = createPublicClient({
   chain: chain,
-  transport: webSocket(process.env.RPC),
+  transport: webSocket(RETH),
 });
 
 let fetchedActivePools = [];
