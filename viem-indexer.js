@@ -1,11 +1,8 @@
 import { createClient } from "redis";
 import { createPublicClient, decodeEventLog, parseAbi, webSocket } from "viem";
 import { chains, getToken } from "./viem-chain-helper.js";
-import {
-  getInitPoolData,
-  getPoolString,
-  updatePoolData,
-} from "./viem-uniV3-helper.js";
+import * as uniV3 from "./viem-uniV3-helper.js";
+import * as veloV3 from "./viem-veloV3-helper.js";
 
 let RETH;
 let KEYDB;
@@ -48,17 +45,20 @@ const processLog = (log) => {
   const pool = poolData?.[log.address.toLowerCase()];
   if (pool === undefined) return;
 
+  const helper = pool.poolType === "uniV3" ? uniV3 : veloV3;
+
   console.log(
-    `${getPoolString(
+    `${helper.getPoolString(
       chain.key,
       getToken(chainId, pool.poolKey.base).symbol,
       getToken(chainId, pool.poolKey.quote).symbol,
-      pool.poolKey.fee
+      pool.poolKey.fee,
+      pool.poolKey.tickSpacing
     )}[${log.eventName}]`
   );
   console.log(log);
 
-  updatePoolData(pool, log);
+  helper.updatePoolData(pool, log);
 
   updateRedisQueue.push(() =>
     redisClient.hSet(
@@ -85,20 +85,22 @@ while (true) {
     const initPoolDataFetch = [];
     for (const pool of activePools) {
       initPoolDataFetch.push(
-        getInitPoolData(
-          chain,
-          viemClient,
-          getToken(chainId, pool[0]),
-          getToken(chainId, pool[1]),
-          pool[2]
-        ).then((v) => {
-          poolData[v.poolAddress] = v;
-          return redisClient.hSet(
-            `pools:${chain.key}`,
-            v.poolAddress,
-            JSON.stringify(v)
-          );
-        })
+        (pool[3] === "uniV3" ? uniV3 : veloV3)
+          .getInitPoolData(
+            chain,
+            viemClient,
+            getToken(chainId, pool[0]),
+            getToken(chainId, pool[1]),
+            pool[2]
+          )
+          .then((v) => {
+            poolData[v.poolAddress] = v;
+            return redisClient.hSet(
+              `pools:${chain.key}`,
+              v.poolAddress,
+              JSON.stringify(v)
+            );
+          })
       );
     }
     await Promise.all(initPoolDataFetch);

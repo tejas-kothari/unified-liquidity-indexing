@@ -1,6 +1,5 @@
-import { getContract, hexToBigInt } from "viem";
-import { computePoolAddress } from "@uniswap/v3-sdk";
-import IUniswapV3PoolABI from "@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json" assert { type: "json" };
+import { getContract, hexToBigInt, parseAbi, parseAbiItem } from "viem";
+import ICLPool from "./ICLPool.json" assert { type: "json" };
 import ContractAddresses from "./contract_addresses.json" assert { type: "json" };
 import { getERC20Balance } from "./viem-chain-helper.js";
 
@@ -11,25 +10,32 @@ export const getPoolString = (
   fee,
   tickSpacing
 ) =>
-  `[${chainKey} - UniV3 ${token0Symbol} ${token1Symbol} ${
+  `[${chainKey} - VeloV3 ${token0Symbol} ${token1Symbol} ${
     (fee / 10 ** 6) * 100 * 100
   }bps ${tickSpacing}ts]`;
 
-const getPoolContract = async (chain, client, token0, token1, fee) => {
-  const poolAddress = computePoolAddress({
-    factoryAddress: ContractAddresses[chain.key].uniV3FactoryAddress,
-    tokenA: token0,
-    tokenB: token1,
-    fee: fee,
-  });
-
-  const contract = getContract({
-    address: poolAddress,
-    abi: IUniswapV3PoolABI.abi,
+const getPoolContract = async (chain, client, token0, token1, tickSpacing) => {
+  const factoryContract = getContract({
+    address: ContractAddresses[chain.key].veloV3FactoryAddress,
+    abi: parseAbi([
+      "function getPool(address tokenA, address tokenB, int24 tickSpacing) external view returns (address pool)",
+    ]),
     client: client,
   });
 
-  const tickSpacing = await contract.read.tickSpacing().then((v) => Number(v));
+  const poolAddress = await factoryContract.read.getPool([
+    token0.address,
+    token1.address,
+    tickSpacing,
+  ]);
+
+  const contract = getContract({
+    address: poolAddress,
+    abi: ICLPool.abi,
+    client: client,
+  });
+
+  const fee = await contract.read.fee().then((v) => Number(v));
 
   console.log(
     `${getPoolString(
@@ -41,7 +47,7 @@ const getPoolContract = async (chain, client, token0, token1, fee) => {
     )}[Init] ${poolAddress}`
   );
 
-  return [contract, tickSpacing];
+  return [contract, fee];
 };
 
 function tickToWord(tick, tickSpacing) {
@@ -105,18 +111,24 @@ const getTickInfo = async (client, contract, tickIndices) => {
   });
 };
 
-export const getInitPoolData = async (chain, client, tokenA, tokenB, fee) => {
+export const getInitPoolData = async (
+  chain,
+  client,
+  tokenA,
+  tokenB,
+  tickSpacing
+) => {
   const [token0, token1] =
     hexToBigInt(tokenA.address) < hexToBigInt(tokenB.address)
       ? [tokenA, tokenB]
       : [tokenB, tokenA];
 
-  const [contract, tickSpacing] = await getPoolContract(
+  const [contract, fee] = await getPoolContract(
     chain,
     client,
     token0,
     token1,
-    fee
+    tickSpacing
   );
   const tickIndices = await getInitializedTicks(client, contract, tickSpacing);
   const tickInfos = await getTickInfo(client, contract, tickIndices);
@@ -144,7 +156,7 @@ export const getInitPoolData = async (chain, client, tokenA, tokenB, fee) => {
       fee,
       extra: "",
     },
-    poolType: "uniV3",
+    poolType: "veloV3",
   };
   tickIndices.forEach((v, i) => {
     pool["ticks"][v] = [tickInfos[i][0], tickInfos[i][1]];
