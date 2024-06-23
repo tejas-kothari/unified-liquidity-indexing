@@ -40,8 +40,8 @@ const processLog = (log) => {
   console.log(
     `${getPoolString(
       chain.key,
-      pool.poolKey.base,
-      pool.poolKey.quote,
+      getToken(chainId, pool.poolKey.base).symbol,
+      getToken(chainId, pool.poolKey.quote).symbol,
       pool.poolKey.fee
     )}[${log.eventName}]`
   );

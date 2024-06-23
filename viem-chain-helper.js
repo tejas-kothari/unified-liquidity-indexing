@@ -4,10 +4,15 @@ import { Token } from "@uniswap/sdk-core";
 import { getContract } from "viem";
 import * as viemChains from "viem/chains";
 
-export const getToken = (chainId, symbol) => {
-  const token = TokenList.tokens.find(
-    (v) => v.chainId === chainId && v.symbol === symbol
-  );
+export const getToken = (chainId, identifier) => {
+  const token =
+    identifier.substring(0, 2) === "0x"
+      ? TokenList.tokens.find(
+          (v) => v.chainId === chainId && v.address === identifier
+        )
+      : TokenList.tokens.find(
+          (v) => v.chainId === chainId && v.symbol === identifier
+        );
   return new Token(chainId, token.address, token.decimals, token.symbol);
 };
 
