@@ -1,8 +1,8 @@
 import { createClient } from "redis";
 import { createPublicClient, decodeEventLog, parseAbi, webSocket } from "viem";
 import { chains, getToken } from "./viem-chain-helper.js";
-import * as uniV3 from "./viem-uniV3-helper.js";
-import * as veloV3 from "./viem-veloV3-helper.js";
+import { UniV3Pool } from "./uniV3Pool.js";
+import { VeloV3Pool } from "./veloV3Pool.js";
 
 let RETH;
 let KEYDB;
@@ -20,51 +20,58 @@ const redisClient = createClient({ url: KEYDB });
 redisClient.on("error", (err) => console.log("Redis Client Error", err));
 await redisClient.connect();
 
-let viemClient = createPublicClient({
+const chainId = await createPublicClient({
   transport: webSocket(RETH),
-});
-const chainId = await viemClient.getChainId();
+}).getChainId();
 const chain = chains.find((v) => v.id === chainId);
-viemClient = createPublicClient({
+const viemClient = createPublicClient({
   chain: chain,
   transport: webSocket(RETH),
 });
 
-let fetchedActivePools = [];
-let activePools = [];
-let lastActivePoolFetchTimeMS = 0;
-let poolData = {};
+let activePoolTopics = [];
+let lastActivePoolsFetchTimeMS = 0;
+const pools = {};
 let unwatch = undefined;
 let updateRedisQueue = [];
 
-BigInt.prototype["toJSON"] = function () {
-  return this.toString();
+const getPoolFromTopic = (poolTopic) => {
+  const identifers = poolTopic.split(/[:/]/);
+  const dex = identifers[0];
+  const token0 = getToken(chainId, identifers[1]);
+  const token1 = getToken(chainId, identifers[2]);
+  const numericalIdentifers = identifers.slice(3);
+  let pool;
+
+  if (dex === "UniV3") {
+    const fee = Number(
+      numericalIdentifers.find((v) => v.includes("bp"))?.replace("bp", "")
+    );
+    pool = new UniV3Pool(token0, token1, fee, chain, viemClient);
+  } else if (dex === "VeloV3") {
+    const tickSpacing = Number(
+      numericalIdentifers.find((v) => v.includes("ts"))?.replace("ts", "")
+    );
+    pool = new VeloV3Pool(token0, token1, tickSpacing, chain, viemClient);
+  }
+
+  return pool;
 };
 
 const processLog = (log) => {
-  const pool = poolData?.[log.address.toLowerCase()];
+  const pool = pools?.[log.address.toLowerCase()];
   if (pool === undefined) return;
 
-  const helper = pool.poolType === "uniV3" ? uniV3 : veloV3;
-
-  console.log(
-    `${helper.getPoolString(
-      chain.key,
-      getToken(chainId, pool.poolKey.base).symbol,
-      getToken(chainId, pool.poolKey.quote).symbol,
-      pool.poolKey.fee,
-      pool.poolKey.tickSpacing
-    )}[${log.eventName}]`
-  );
+  console.log(`${pool.getPoolString()}[${log.eventName}]`);
   console.log(log);
 
-  helper.updatePoolData(pool, log);
+  pool.updatePoolDataFromLog(log);
 
   updateRedisQueue.push(() =>
     redisClient.hSet(
       `pools:${chain.key}`,
-      pool.poolAddress,
-      JSON.stringify(pool)
+      pool.poolId,
+      JSON.stringify(pool, (_, v) => (typeof v === "bigint" ? v.toString() : v))
     )
   );
 };
@@ -72,57 +79,58 @@ const processLog = (log) => {
 while (true) {
   const currTimeMS = new Date().getTime();
 
-  if (currTimeMS - lastActivePoolFetchTimeMS > 60_000) {
-    lastActivePoolFetchTimeMS = currTimeMS;
-    fetchedActivePools = await redisClient
+  if (currTimeMS - lastActivePoolsFetchTimeMS > 60_000) {
+    lastActivePoolsFetchTimeMS = currTimeMS;
+    const fetchedActivePools = await redisClient
       .hGet(`pools:${chain.key}`, "active-pools")
       .then((v) => JSON.parse(v));
-  }
 
-  if (JSON.stringify(activePools) !== JSON.stringify(fetchedActivePools)) {
-    activePools = [...fetchedActivePools];
+    if (
+      JSON.stringify(activePoolTopics) !== JSON.stringify(fetchedActivePools)
+    ) {
+      activePoolTopics = [...fetchedActivePools];
 
-    const initPoolDataFetch = [];
-    for (const pool of activePools) {
-      initPoolDataFetch.push(
-        (pool[3] === "uniV3" ? uniV3 : veloV3)
-          .getInitPoolData(
-            chain,
-            viemClient,
-            getToken(chainId, pool[0]),
-            getToken(chainId, pool[1]),
-            pool[2]
-          )
-          .then((v) => {
-            poolData[v.poolAddress] = v;
+      const poolDataFetch = [];
+      for (const poolTopic of activePoolTopics) {
+        const pool = getPoolFromTopic(poolTopic);
+        poolDataFetch.push(
+          pool.getInitPoolData().then(() => {
+            pools[pool.getAddress().toLowerCase()] = pool;
             return redisClient.hSet(
               `pools:${chain.key}`,
-              v.poolAddress,
-              JSON.stringify(v)
+              pool.poolId,
+              JSON.stringify(pool, (_, v) =>
+                typeof v === "bigint" ? v.toString() : v
+              )
             );
           })
-      );
+        );
+      }
+      await Promise.all(poolDataFetch);
+
+      if (unwatch !== undefined) unwatch();
+
+      const abi = parseAbi([
+        "event Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)",
+        "event Burn(address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)",
+        "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)",
+      ]);
+
+      unwatch = viemClient.watchEvent({
+        events: abi,
+        onLogs: (logs) =>
+          logs.forEach((log) =>
+            processLog({
+              ...log,
+              ...decodeEventLog({
+                abi: abi,
+                data: log.data,
+                topics: log.topics,
+              }),
+            })
+          ),
+      });
     }
-    await Promise.all(initPoolDataFetch);
-
-    if (unwatch !== undefined) unwatch();
-
-    const abi = parseAbi([
-      "event Mint(address sender, address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)",
-      "event Burn(address indexed owner, int24 indexed tickLower, int24 indexed tickUpper, uint128 amount, uint256 amount0, uint256 amount1)",
-      "event Swap(address indexed sender, address indexed recipient, int256 amount0, int256 amount1, uint160 sqrtPriceX96, uint128 liquidity, int24 tick)",
-    ]);
-
-    unwatch = viemClient.watchEvent({
-      events: abi,
-      onLogs: (logs) =>
-        logs.forEach((v) =>
-          processLog({
-            ...v,
-            ...decodeEventLog({ abi: abi, data: v.data, topics: v.topics }),
-          })
-        ),
-    });
   }
 
   for (const redisUpdate of updateRedisQueue) {
