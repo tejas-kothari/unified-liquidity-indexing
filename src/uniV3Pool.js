@@ -1,6 +1,6 @@
 import { computePoolAddress } from "@uniswap/v3-sdk";
 import { UniV3LikePool } from "./uniV3LikePool.js";
-import ContractAddresses from "./contractAddresses.json" assert { type: "json" };
+import ContractAddresses from "./static/contractAddresses.json" assert { type: "json" };
 import { getContract } from "viem";
 import IUniswapV3PoolABI from "@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json" assert { type: "json" };
 

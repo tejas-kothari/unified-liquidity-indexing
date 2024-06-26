@@ -1,4 +1,4 @@
-import TokenList from "./tokenList.json" assert { type: "json" };
+import TokenList from "./static/tokenList.json" assert { type: "json" };
 import IERC20ABI from "@uniswap/v2-core/build/IERC20.json" assert { type: "json" };
 import { Token } from "@uniswap/sdk-core";
 import { getContract } from "viem";

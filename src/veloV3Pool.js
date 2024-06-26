@@ -1,6 +1,6 @@
 import { UniV3LikePool } from "./uniV3LikePool.js";
-import ContractAddresses from "./contractAddresses.json" assert { type: "json" };
-import ICLPool from "./ICLPool.json" assert { type: "json" };
+import ContractAddresses from "./static/contractAddresses.json" assert { type: "json" };
+import ICLPool from "./static/ICLPool.json" assert { type: "json" };
 import { getContract, parseAbi } from "viem";
 
 export class VeloV3Pool extends UniV3LikePool {

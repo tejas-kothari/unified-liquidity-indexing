@@ -1,5 +1,5 @@
 import { encodeAbiParameters, keccak256, parseAbiParameters } from "viem";
-import { getERC20Balance } from "./viem-chain-helper.js";
+import { getERC20Balance } from "./chains.js";
 
 export class UniV3LikePool {
   constructor(token0, token1, fee, tickSpacing, chain, viemClient) {

@@ -1,6 +1,6 @@
 import { createClient } from "redis";
 import { createPublicClient, decodeEventLog, parseAbi, webSocket } from "viem";
-import { chains, getToken } from "./viem-chain-helper.js";
+import { chains, getToken } from "./chains.js";
 import { UniV3Pool } from "./uniV3Pool.js";
 import { VeloV3Pool } from "./veloV3Pool.js";
 
