@@ -13,8 +13,10 @@ const optionDefinitions = [
 const { RPC, KEYDB, PUB_CHANNEL } = commandLineArgs(optionDefinitions);
 
 const redisClient = createClient({ url: KEYDB });
+const redisPubClient = redisClient.duplicate();
 redisClient.on("error", (err) => console.log("Redis Client Error", err));
-await redisClient.connect();
+redisPubClient.on("error", (err) => console.log("Redis Pub Client Error", err));
+await Promise.all([redisClient.connect(), redisPubClient.connect()]);
 
 const chainId = await createPublicClient({
   transport: webSocket(RPC),
@@ -63,12 +65,16 @@ const processLog = (log) => {
 
   pool.updatePoolDataFromLog(log);
 
+  const poolJSON = JSON.stringify(pool, (_, v) =>
+    typeof v === "bigint" ? v.toString() : v
+  );
+
   updateRedisQueue.push(() =>
-    redisClient.hSet(
-      `pools:${chain.key}`,
-      pool.poolId,
-      JSON.stringify(pool, (_, v) => (typeof v === "bigint" ? v.toString() : v))
-    )
+    redisPubClient
+      .publish(PUB_CHANNEL, poolJSON)
+      .then((v) =>
+        redisClient.hSet(`pools:${chain.key}`, pool.poolId, poolJSON)
+      )
   );
 };
 
