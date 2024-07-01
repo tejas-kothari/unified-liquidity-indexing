@@ -3,30 +3,26 @@ import { createPublicClient, decodeEventLog, parseAbi, webSocket } from "viem";
 import { chains, getToken } from "./chains.js";
 import { UniV3Pool } from "./uniV3Pool.js";
 import { VeloV3Pool } from "./veloV3Pool.js";
+import commandLineArgs from "command-line-args";
 
-let RETH;
-let KEYDB;
-
-const rethIndex = process.argv.indexOf("--RETH");
-const keydbIndex = process.argv.indexOf("--KEYDB");
-if (rethIndex > -1 && keydbIndex > -1) {
-  RETH = process.argv[rethIndex + 1];
-  KEYDB = process.argv[keydbIndex + 1];
-} else {
-  throw Error("RETH or KEYDB args not found");
-}
+const optionDefinitions = [
+  { name: "RPC", type: String },
+  { name: "KEYDB", type: String },
+  { name: "PUB_CHANNEL", type: String, defaultValue: "indexer_updates" },
+];
+const { RPC, KEYDB, PUB_CHANNEL } = commandLineArgs(optionDefinitions);
 
 const redisClient = createClient({ url: KEYDB });
 redisClient.on("error", (err) => console.log("Redis Client Error", err));
 await redisClient.connect();
 
 const chainId = await createPublicClient({
-  transport: webSocket(RETH),
+  transport: webSocket(RPC),
 }).getChainId();
 const chain = chains.find((v) => v.id === chainId);
 const viemClient = createPublicClient({
   chain: chain,
-  transport: webSocket(RETH),
+  transport: webSocket(RPC),
 });
 
 let activePoolTopics = [];
