@@ -4,6 +4,11 @@ import { Token } from "@uniswap/sdk-core";
 import { getContract } from "viem";
 import * as viemChains from "viem/chains";
 
+export const dexes = {
+  UniV3: "UniswapV3",
+  VeloV3: "VelodromeV3",
+};
+
 export const getToken = (chainId, address) => {
   const token = TokenList.tokens.find(
     (v) => v.chainId === chainId && v.address === address

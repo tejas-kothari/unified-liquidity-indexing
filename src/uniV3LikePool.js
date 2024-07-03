@@ -2,11 +2,20 @@ import { encodeAbiParameters, keccak256, parseAbiParameters } from "viem";
 import { getERC20Balance } from "./chains.js";
 
 export class UniV3LikePool {
-  constructor(token0, token1, fee, tickSpacing, chain, viemClient) {
+  constructor(
+    token0,
+    token1,
+    fee,
+    tickSpacing,
+    factoryAddress,
+    chain,
+    viemClient
+  ) {
     [this.token0, this.token1] =
       token0.address < token1.address ? [token0, token1] : [token1, token0];
     this.fee = fee;
     this.tickSpacing = tickSpacing;
+    this.factoryAddress = factoryAddress;
     this.chain = chain;
     this.viemClient = viemClient;
     this.ticks = {};

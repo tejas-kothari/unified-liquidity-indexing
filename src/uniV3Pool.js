@@ -1,19 +1,26 @@
 import { computePoolAddress } from "@uniswap/v3-sdk";
 import { UniV3LikePool } from "./uniV3LikePool.js";
-import ContractAddresses from "./static/contractAddresses.json" assert { type: "json" };
 import { getContract } from "viem";
 import IUniswapV3PoolABI from "@uniswap/v3-core/artifacts/contracts/interfaces/IUniswapV3Pool.sol/IUniswapV3Pool.json" assert { type: "json" };
 
 export class UniV3Pool extends UniV3LikePool {
   dex = "UniV3";
 
-  constructor(token0, token1, fee, tickSpacing, chain, viemClient) {
-    super(token0, token1, fee, tickSpacing, chain, viemClient);
+  constructor(
+    token0,
+    token1,
+    fee,
+    tickSpacing,
+    factoryAddress,
+    chain,
+    viemClient
+  ) {
+    super(token0, token1, fee, tickSpacing, factoryAddress, chain, viemClient);
   }
 
   getPoolContract = () => {
     const poolAddress = computePoolAddress({
-      factoryAddress: ContractAddresses[this.chain.key].uniV3Factory,
+      factoryAddress: this.factoryAddress,
       tokenA: this.token0,
       tokenB: this.token1,
       fee: this.getFee(),

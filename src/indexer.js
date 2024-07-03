@@ -1,6 +1,6 @@
 import { createClient } from "redis";
 import { createPublicClient, decodeEventLog, parseAbi, webSocket } from "viem";
-import { chains, getToken } from "./chains.js";
+import { chains, dexes, getToken } from "./chains.js";
 import { UniV3Pool } from "./uniV3Pool.js";
 import { VeloV3Pool } from "./veloV3Pool.js";
 import commandLineArgs from "command-line-args";
@@ -37,6 +37,17 @@ BigInt.prototype.toJSON = function () {
   return this.toString();
 };
 
+const factoryAddresses = {};
+const factoryFetch = [];
+for (const dex of Object.keys(dexes)) {
+  factoryFetch.push(
+    redisClient
+      .get(`pools:${chain.key}:${dex}:factory`)
+      .then((v) => (factoryAddresses[dex] = v))
+  );
+}
+await Promise.all(factoryFetch);
+
 const getPoolFromTopic = (poolTopic) => {
   const identifers = poolTopic.split(/[:/]/);
   const dex = identifers[0];
@@ -53,9 +64,25 @@ const getPoolFromTopic = (poolTopic) => {
   let pool;
 
   if (dex === "UniV3") {
-    pool = new UniV3Pool(token0, token1, fee, tickSpacing, chain, viemClient);
+    pool = new UniV3Pool(
+      token0,
+      token1,
+      fee,
+      tickSpacing,
+      factoryAddresses.UniV3,
+      chain,
+      viemClient
+    );
   } else if (dex === "VeloV3") {
-    pool = new VeloV3Pool(token0, token1, fee, tickSpacing, chain, viemClient);
+    pool = new VeloV3Pool(
+      token0,
+      token1,
+      fee,
+      tickSpacing,
+      factoryAddresses.VeloV3,
+      chain,
+      viemClient
+    );
   }
 
   return pool;
