@@ -12,7 +12,7 @@ export class UniV3LikePool {
     this.ticks = {};
   }
 
-  static feeToBp = (fee) => (fee / 10 ** 6) * 100 * 100;
+  getFee = () => this.fee * 10 ** 2;
 
   getAddress = () => {
     return this.contract.address;
@@ -90,8 +90,6 @@ export class UniV3LikePool {
       this.token0Bal,
       this.token1Bal,
       this.blockNumber,
-      this.tickSpacing,
-      this.fee,
     ] = await Promise.all([
       this.contract.read.slot0(),
       this.contract.read.liquidity(),
@@ -106,10 +104,6 @@ export class UniV3LikePool {
         this.viemClient
       ),
       this.viemClient.getBlockNumber(),
-      this.tickSpacing === undefined
-        ? this.contract.read.tickSpacing()
-        : this.tickSpacing,
-      this.fee === undefined ? this.contract.read.fee() : this.fee,
     ]);
 
     const tickIndices = await this.getInitializedTicks();
@@ -125,29 +119,7 @@ export class UniV3LikePool {
     `${this.dex}:${this.token0.address}/${this.token1.address}/${this.tickSpacing}ts/${this.fee}bp`;
 
   getPoolString = () =>
-    `[${this.chain.key} - ${this.dex} ${this.token0.symbol}/${
-      this.token1.symbol
-    } ${UniV3LikePool.feeToBp(this.fee)}bp ${this.tickSpacing}ts]`;
-
-  toJSON = () => {
-    const obj = {
-      blockNumber: this.blockNumber,
-      ticks: { ...this.ticks },
-      slot0: this.slot0,
-      liquidity: this.liquidity,
-      reserve: [this.token0Bal, this.token1Bal],
-      poolAddress: this.contract.address.toLowerCase(),
-      poolKey: {
-        token0: this.token0.address,
-        token1: this.token1.address,
-        tickSpacing: this.tickSpacing,
-        fee: this.fee,
-        extra: "",
-      },
-    };
-
-    return obj;
-  };
+    `[${this.chain.key} - ${this.dex} ${this.token0.symbol}/${this.token1.symbol} ${this.tickSpacing}ts ${this.fee}bp]`;
 
   updatePoolDataFromLog = (log) => {
     if (log.eventName === "Swap") {
@@ -203,7 +175,7 @@ export class UniV3LikePool {
         token0: this.token0.address,
         token1: this.token1.address,
         tickSpacing: this.tickSpacing,
-        fee: this.fee,
+        fee: this.getFee(),
         extra: "",
       },
     };

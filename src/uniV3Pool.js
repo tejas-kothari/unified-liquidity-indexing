@@ -16,7 +16,7 @@ export class UniV3Pool extends UniV3LikePool {
       factoryAddress: ContractAddresses[this.chain.key].uniV3Factory,
       tokenA: this.token0,
       tokenB: this.token1,
-      fee: this.fee,
+      fee: this.getFee(),
     });
 
     this.contract = getContract({

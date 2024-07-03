@@ -70,10 +70,6 @@ const processLog = (log) => {
 
   pool.updatePoolDataFromLog(log);
 
-  const poolJSON = JSON.stringify(pool, (_, v) =>
-    typeof v === "bigint" ? v.toString() : v
-  );
-
   updateRedisQueue.push(() =>
     pool.pushToRedis(redisClient, redisPubClient, PUB_CHANNEL)
   );
