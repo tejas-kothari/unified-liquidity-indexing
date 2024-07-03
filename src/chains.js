@@ -15,9 +15,20 @@ export const chains = Object.entries(viemChains).map(([k, v]) => ({
 const getERC20Contract = (address, client) =>
   getContract({ address: address, abi: IERC20ABI.abi, client: client });
 
-export const getERC20Balance = async (address, erc20Address, client) => {
+export const getERC20Balance = async (
+  address,
+  erc20Address,
+  client,
+  blockNumber
+) => {
   const contract = getERC20Contract(erc20Address, client);
-  return contract.read.balanceOf([address]);
+  return client.readContract({
+    address: erc20Address,
+    abi: contract.abi,
+    functionName: "balanceOf",
+    args: [address],
+    blockNumber: blockNumber,
+  });
 };
 
 export const getERC20Metadata = (address, client) => {

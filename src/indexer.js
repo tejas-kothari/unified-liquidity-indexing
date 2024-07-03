@@ -150,13 +150,14 @@ while (true) {
       JSON.stringify(activePoolTopics) !== JSON.stringify(fetchedActivePools)
     ) {
       activePoolTopics = [...fetchedActivePools];
+      const blockNumber = await viemClient.getBlockNumber();
 
       const poolDataFetch = [];
       for (const poolTopic of activePoolTopics) {
         const pool = await getPoolFromTopic(poolTopic);
         poolDataFetch.push(
-          pool.getInitPoolData().then(() => {
-            pools[pool.getAddress().toLowerCase()] = pool;
+          pool.getInitPoolData(blockNumber).then(() => {
+            pools[pool.getContractAddress().toLowerCase()] = pool;
             return pool.pushToRedis(redisClient, redisPubClient, PUB_CHANNEL);
           })
         );
@@ -172,6 +173,7 @@ while (true) {
       ]);
 
       unwatch = viemClient.watchEvent({
+        fromBlock: blockNumber + 1n,
         events: abi,
         onLogs: (logs) =>
           logs.forEach((log) =>

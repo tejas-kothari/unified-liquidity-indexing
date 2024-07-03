@@ -23,7 +23,7 @@ export class UniV3LikePool {
 
   getFee = () => this.fee * 10 ** 2;
 
-  getAddress = () => {
+  getContractAddress = () => {
     return this.contract.address;
   };
 
@@ -35,7 +35,7 @@ export class UniV3LikePool {
     return compressed >> 8;
   };
 
-  getInitializedTicks = async () => {
+  getInitializedTicks = async (blockNumber) => {
     const minWord = this.tickToWord(-887272);
     const maxWord = this.tickToWord(887272);
 
@@ -54,6 +54,7 @@ export class UniV3LikePool {
     const results = await this.viemClient.multicall({
       contracts: calls,
       allowFailure: false,
+      blockNumber: blockNumber,
     });
 
     const tickIndices = [];
@@ -76,7 +77,7 @@ export class UniV3LikePool {
     return tickIndices;
   };
 
-  getTickInfo = async (tickIndices) => {
+  getTickInfo = async (tickIndices, blockNumber) => {
     return this.viemClient.multicall({
       contracts: tickIndices.map((v) => ({
         address: this.contract.address,
@@ -84,39 +85,48 @@ export class UniV3LikePool {
         functionName: "ticks",
         args: [v],
       })),
+      blockNumber: blockNumber,
       allowFailure: false,
     });
   };
 
-  getInitPoolData = async () => {
+  getInitPoolData = async (blockNumber) => {
     if (this.contract === undefined) {
       await this.getPoolContract();
     }
 
-    [
-      this.slot0,
-      this.liquidity,
-      this.token0Bal,
-      this.token1Bal,
-      this.blockNumber,
-    ] = await Promise.all([
-      this.contract.read.slot0(),
-      this.contract.read.liquidity(),
-      getERC20Balance(
-        this.contract.address,
-        this.token0.address,
-        this.viemClient
-      ),
-      getERC20Balance(
-        this.contract.address,
-        this.token1.address,
-        this.viemClient
-      ),
-      this.viemClient.getBlockNumber(),
-    ]);
+    this.blockNumber = blockNumber;
 
-    const tickIndices = await this.getInitializedTicks();
-    const tickInfos = await this.getTickInfo(tickIndices);
+    [this.slot0, this.liquidity, this.token0Bal, this.token1Bal] =
+      await Promise.all([
+        this.viemClient.readContract({
+          address: this.contract.address,
+          abi: this.contract.abi,
+          functionName: "slot0",
+          blockNumber: blockNumber,
+        }),
+        this.viemClient.readContract({
+          address: this.contract.address,
+          abi: this.contract.abi,
+          functionName: "liquidity",
+          blockNumber: blockNumber,
+        }),
+        getERC20Balance(
+          this.contract.address,
+          this.token0.address,
+          this.viemClient,
+          blockNumber
+        ),
+        getERC20Balance(
+          this.contract.address,
+          this.token1.address,
+          this.viemClient,
+          blockNumber
+        ),
+      ]);
+
+    const tickIndices = await this.getInitializedTicks(blockNumber);
+    const tickInfos = await this.getTickInfo(tickIndices, blockNumber);
     tickIndices.forEach((v, i) => {
       this.ticks[v] = [tickInfos[i][0], tickInfos[i][1]];
     });
