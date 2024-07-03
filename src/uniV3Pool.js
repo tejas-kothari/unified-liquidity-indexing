@@ -7,8 +7,8 @@ import IUniswapV3PoolABI from "@uniswap/v3-core/artifacts/contracts/interfaces/I
 export class UniV3Pool extends UniV3LikePool {
   dex = "UniV3";
 
-  constructor(token0, token1, fee, chain, viemClient) {
-    super(token0, token1, fee, undefined, chain, viemClient);
+  constructor(token0, token1, fee, tickSpacing, chain, viemClient) {
+    super(token0, token1, fee, tickSpacing, chain, viemClient);
   }
 
   getPoolContract = () => {

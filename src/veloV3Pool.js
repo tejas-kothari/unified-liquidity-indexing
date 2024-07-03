@@ -6,8 +6,8 @@ import { getContract, parseAbi } from "viem";
 export class VeloV3Pool extends UniV3LikePool {
   dex = "VeloV3";
 
-  constructor(token0, token1, tickSpacing, chain, viemClient) {
-    super(token0, token1, undefined, tickSpacing, chain, viemClient);
+  constructor(token0, token1, fee, tickSpacing, chain, viemClient) {
+    super(token0, token1, fee, tickSpacing, chain, viemClient);
   }
 
   getPoolContract = async () => {

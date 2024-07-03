@@ -33,24 +33,29 @@ const pools = {};
 let unwatch = undefined;
 let updateRedisQueue = [];
 
+BigInt.prototype.toJSON = function () {
+  return this.toString();
+};
+
 const getPoolFromTopic = (poolTopic) => {
   const identifers = poolTopic.split(/[:/]/);
   const dex = identifers[0];
   const token0 = getToken(chainId, identifers[1]);
   const token1 = getToken(chainId, identifers[2]);
   const numericalIdentifers = identifers.slice(3);
+  const fee = Number(
+    numericalIdentifers.find((v) => v.includes("bp"))?.replace("bp", "")
+  );
+  const tickSpacing = Number(
+    numericalIdentifers.find((v) => v.includes("ts"))?.replace("ts", "")
+  );
+
   let pool;
 
   if (dex === "UniV3") {
-    const fee = Number(
-      numericalIdentifers.find((v) => v.includes("bp"))?.replace("bp", "")
-    );
-    pool = new UniV3Pool(token0, token1, fee, chain, viemClient);
+    pool = new UniV3Pool(token0, token1, fee, tickSpacing, chain, viemClient);
   } else if (dex === "VeloV3") {
-    const tickSpacing = Number(
-      numericalIdentifers.find((v) => v.includes("ts"))?.replace("ts", "")
-    );
-    pool = new VeloV3Pool(token0, token1, tickSpacing, chain, viemClient);
+    pool = new VeloV3Pool(token0, token1, fee, tickSpacing, chain, viemClient);
   }
 
   return pool;
@@ -70,11 +75,7 @@ const processLog = (log) => {
   );
 
   updateRedisQueue.push(() =>
-    redisPubClient
-      .publish(PUB_CHANNEL, poolJSON)
-      .then((v) =>
-        redisClient.hSet(`pools:${chain.key}`, pool.poolId, poolJSON)
-      )
+    pool.pushToRedis(redisClient, redisPubClient, PUB_CHANNEL)
   );
 };
 
@@ -83,9 +84,9 @@ while (true) {
 
   if (currTimeMS - lastActivePoolsFetchTimeMS > 60_000) {
     lastActivePoolsFetchTimeMS = currTimeMS;
-    const fetchedActivePools = await redisClient
-      .hGet(`pools:${chain.key}`, "active-pools")
-      .then((v) => JSON.parse(v));
+    const fetchedActivePools = await redisClient.hKeys(
+      `pools:${chain.key}:active-pools`
+    );
 
     if (
       JSON.stringify(activePoolTopics) !== JSON.stringify(fetchedActivePools)
@@ -98,13 +99,7 @@ while (true) {
         poolDataFetch.push(
           pool.getInitPoolData().then(() => {
             pools[pool.getAddress().toLowerCase()] = pool;
-            return redisClient.hSet(
-              `pools:${chain.key}`,
-              pool.poolId,
-              JSON.stringify(pool, (_, v) =>
-                typeof v === "bigint" ? v.toString() : v
-              )
-            );
+            return pool.pushToRedis(redisClient, redisPubClient, PUB_CHANNEL);
           })
         );
       }

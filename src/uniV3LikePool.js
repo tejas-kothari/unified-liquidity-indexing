@@ -118,24 +118,11 @@ export class UniV3LikePool {
       this.ticks[v] = [tickInfos[i][0], tickInfos[i][1]];
     });
 
-    this.poolId = this.dex
-      .concat(":")
-      .concat(
-        keccak256(
-          encodeAbiParameters(
-            parseAbiParameters("address, address, uint24, int24"),
-            [
-              this.token0.address,
-              this.token1.address,
-              this.fee,
-              this.tickSpacing,
-            ]
-          )
-        )
-      );
-
     console.log(this.getPoolString().concat(`[Init] ${this.contract.address}`));
   };
+
+  getPoolId = () =>
+    `${this.dex}:${this.token0.address}/${this.token1.address}/${this.tickSpacing}ts/${this.fee}bp`;
 
   getPoolString = () =>
     `[${this.chain.key} - ${this.dex} ${this.token0.symbol}/${
@@ -151,8 +138,8 @@ export class UniV3LikePool {
       reserve: [this.token0Bal, this.token1Bal],
       poolAddress: this.contract.address.toLowerCase(),
       poolKey: {
-        base: this.token0.address,
-        quote: this.token1.address,
+        token0: this.token0.address,
+        token1: this.token1.address,
         tickSpacing: this.tickSpacing,
         fee: this.fee,
         extra: "",
@@ -203,5 +190,34 @@ export class UniV3LikePool {
       liquidityAfter,
       isUpper ? liquidityNet - liquidityDelta : liquidityNet + liquidityDelta,
     ];
+  };
+
+  pushToRedis = async (redisClient, redisPubClient, pubChannel) => {
+    const info = {
+      blockNumber: this.blockNumber,
+      slot0: this.slot0,
+      liquidity: this.liquidity,
+      reserve: [this.token0Bal, this.token1Bal],
+      poolAddress: this.contract.address.toLowerCase(),
+      poolKey: {
+        token0: this.token0.address,
+        token1: this.token1.address,
+        tickSpacing: this.tickSpacing,
+        fee: this.fee,
+        extra: "",
+      },
+    };
+    const ticks = Object.entries(this.ticks).map((v) => v.flat());
+
+    const poolKey = `pools:${this.chain.key}:${this.getPoolId()}`;
+
+    return Promise.all([
+      redisPubClient.publish(
+        pubChannel,
+        JSON.stringify({ ...info, ticks: ticks })
+      ),
+      redisClient.hSet(poolKey, "info", JSON.stringify(info)),
+      redisClient.hSet(poolKey, "ticks", JSON.stringify(ticks)),
+    ]);
   };
 }
