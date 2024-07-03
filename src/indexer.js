@@ -1,9 +1,10 @@
 import { createClient } from "redis";
 import { createPublicClient, decodeEventLog, parseAbi, webSocket } from "viem";
-import { chains, dexes, getToken } from "./chains.js";
+import { chains, dexes, getERC20Metadata } from "./chains.js";
 import { UniV3Pool } from "./uniV3Pool.js";
 import { VeloV3Pool } from "./veloV3Pool.js";
 import commandLineArgs from "command-line-args";
+import { Token } from "@uniswap/sdk-core";
 
 const optionDefinitions = [
   { name: "RPC", type: String },
@@ -48,11 +49,45 @@ for (const dex of Object.keys(dexes)) {
 }
 await Promise.all(factoryFetch);
 
-const getPoolFromTopic = (poolTopic) => {
+const tokens = {};
+const tokenList = await redisClient.hGetAll(`tokens:${chain.key}`);
+for (const tokenAddress in tokenList) {
+  const tokenMetadata = JSON.parse(tokenList[tokenAddress]);
+  tokens[tokenAddress] = new Token(
+    chainId,
+    tokenAddress,
+    tokenMetadata.decimals,
+    tokenMetadata.symbol,
+    tokenMetadata.name
+  );
+}
+
+const getToken = async (address) => {
+  if (tokens[address] !== undefined) {
+    return tokens[address];
+  }
+
+  const [name, symbol, decimals] = await getERC20Metadata(address, viemClient);
+
+  await redisClient.hSet(
+    `tokens:${chain.key}`,
+    address,
+    JSON.stringify({ name, symbol, decimals })
+  );
+
+  const token = new Token(chainId, address, decimals, symbol, name);
+  tokens[address] = token;
+
+  return token;
+};
+
+const getPoolFromTopic = async (poolTopic) => {
   const identifers = poolTopic.split(/[:/]/);
   const dex = identifers[0];
-  const token0 = getToken(chainId, identifers[1]);
-  const token1 = getToken(chainId, identifers[2]);
+  const [token0, token1] = await Promise.all([
+    getToken(identifers[1]),
+    getToken(identifers[2]),
+  ]);
   const numericalIdentifers = identifers.slice(3);
   const fee = Number(
     numericalIdentifers.find((v) => v.includes("bp"))?.replace("bp", "")
@@ -118,7 +153,7 @@ while (true) {
 
       const poolDataFetch = [];
       for (const poolTopic of activePoolTopics) {
-        const pool = getPoolFromTopic(poolTopic);
+        const pool = await getPoolFromTopic(poolTopic);
         poolDataFetch.push(
           pool.getInitPoolData().then(() => {
             pools[pool.getAddress().toLowerCase()] = pool;
