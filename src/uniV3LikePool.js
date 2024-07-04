@@ -206,7 +206,7 @@ export class UniV3LikePool {
     return Promise.all([
       redisPubClient.publish(
         pubChannel,
-        JSON.stringify({ ...info, ticks: ticks })
+        JSON.stringify({ ...info, ticks: ticks, topic: poolTopic })
       ),
       redisClient.hSet(poolKey, "info", JSON.stringify(info)),
       redisClient.hSet(poolKey, "ticks", JSON.stringify(ticks)),
