@@ -134,7 +134,7 @@ export class UniV3LikePool {
     console.log(this.getPoolString().concat(`[Init] ${this.contract.address}`));
   };
 
-  getPoolId = () =>
+  getPoolTopic = () =>
     `${this.dex}:${this.token0.address}/${this.token1.address}/${this.tickSpacing}ts/${this.fee}bp`;
 
   getPoolString = () =>
@@ -200,7 +200,8 @@ export class UniV3LikePool {
     };
     const ticks = Object.entries(this.ticks).map((v) => v.flat());
 
-    const poolKey = `pools:${this.chain.key}:${this.getPoolId()}`;
+    const poolTopic = this.getPoolTopic();
+    const poolKey = `pools:${this.chain.key}:${poolTopic}`;
 
     return Promise.all([
       redisPubClient.publish(
@@ -209,6 +210,11 @@ export class UniV3LikePool {
       ),
       redisClient.hSet(poolKey, "info", JSON.stringify(info)),
       redisClient.hSet(poolKey, "ticks", JSON.stringify(ticks)),
+      redisClient.hSet(
+        `pools:${this.chain.key}:active-pools`,
+        poolTopic,
+        this.blockNumber.toString()
+      ),
     ]);
   };
 }
